@@ -1,0 +1,110 @@
+\documentclass[border=20pt]{standalone}
+\usepackage{tikz}
+
+\definecolor{fond}{RGB}{173,216,230}
+
+\newcommand{\ordonne}[3]{
+ \draw[very thin, color=black!20] (2,#1) -- (35.75,#1) node[left, xshift=-0.4cm, color=black] at (2,#1) {#2};
+}
+\newcommand{\petittrait}[2]{
+    \draw[very thin,color=black!50] (#1,2) -- (#1,1.8) node[below, color=black] at (#1,1.75) {#2}
+}
+\newcommand{\graphique}[4]{
+\draw[color=blue!40, line width=1.5pt](#1,#2)--(#3,#4);
+}
+
+
+\begin{document}
+\begin{tikzpicture}
+
+    \filldraw[fond] (0,0) rectangle (36.5,13.5);
+    \node[rotate=90, right] at(0.6,4) {Percent Change from Preceding Period};
+    \fill[white] (2,2) rectangle (35.75,12);
+    \graphique{2}{9.9}{2.7}{7.7};
+    \ordonne{3}{-1};
+    \ordonne{4}{0};
+    \ordonne{5}{1};
+    \ordonne{6}{2};
+    \ordonne{7}{3};
+    \ordonne{8}{4};
+    \ordonne{9}{5};
+    \ordonne{10}{6};
+    \ordonne{11}{7};
+    \node[left, xshift=-0.4cm] at (2,2) {-2};
+    \node[left, xshift=-0.4cm] at (2,12) {8};
+
+    \petittrait{4}{1997};
+    \petittrait{7}{1998};
+    \petittrait{10}{1999};
+    \petittrait{13}{2000};
+    \petittrait{16}{2001};
+    \petittrait{19}{2002};
+    \petittrait{22}{2003};
+    \petittrait{25}{2004};
+    \petittrait{28}{2005};
+    \petittrait{31}{2006};
+    \petittrait{34}{2007};
+
+    \filldraw[black!20] (16.7,2)rectangle(18.3,12);
+
+    \draw[line width=2pt] (2,4)--(35.75,4);
+
+    \graphique{2.7}{7.7}{3.3}{8.15};
+    \graphique{3.3}{8.15}{4}{6.8};
+    \graphique{4}{6.8}{5}{10.93};
+    \graphique{5}{10.93}{6}{7.6};
+    \graphique{6}{7.6}{7}{8.1};
+    \graphique{7}{8.1}{7.8}{7.88};
+    \graphique{7.8}{7.88}{9}{10.75};
+    \graphique{9}{10.75}{10}{7.8};
+    \graphique{10}{7.8}{11}{7.15};
+    \graphique{11}{7.15}{11.5}{9.4};
+    \graphique{11.5}{9.4}{12}{11};
+    \graphique{12}{11}{13}{5.7};
+    \graphique{13}{5.7}{13.75}{11.3};
+    \graphique{13.75}{11.3}{14.5}{4.7};
+    \graphique{14.5}{4.7}{15.25}{6.35};
+    \graphique{15.25}{6.35}{16}{2.98};
+    \graphique{16}{2.98}{16.9}{6.25};
+    \graphique{16.9}{6.25}{17.6}{2.4};
+    \graphique{17.6}{2.4}{18.15}{5.3};
+    \graphique{18.15}{5.3}{19}{7.6};
+    \graphique{19}{7.6}{19.75}{6.4};
+    \graphique{19.75}{6.4}{20.5}{5.85};
+    \graphique{20.5}{5.85}{21.25}{4.8};
+    \graphique{21.25}{4.8}{22}{6.2};
+    \graphique{22}{6.2}{22.75}{7.35};
+    \graphique{22.75}{7.35}{23.75}{11};
+    \graphique{23.75}{11}{25}{6.2};
+    \graphique{25}{6.2}{25.75}{7.2};
+    \graphique{25.75}{7.2}{26.5}{7.85};
+    \graphique{26.5}{7.85}{27.25}{8.05};
+    \graphique{27.25}{8.05}{28}{8.5};
+    \graphique{28}{8.5}{28.75}{5.9};
+    \graphique{28.75}{5.9}{29.5}{7.5};
+    \graphique{29.5}{7.5}{30.25}{6.75};
+    \graphique{30.25}{6.75}{31}{9.25};
+    \graphique{31}{9.25}{31.75}{4.9};
+    \graphique{31.75}{4.9}{32.5}{4.65};
+    \graphique{32.5}{4.65}{33.25}{7.4};
+    \graphique{33.25}{7.4}{34}{4.95};
+    \graphique{34}{4.95}{34.75}{6.25};
+    \graphique{34.75}{6.25}{35.5}{6.15};
+    \graphique{35.5}{6.15}{35.75}{6.25};
+
+
+    \node[right, blue!70, scale=1.2] at (1,0.6) {\textbf{Shaded areas indicate U.S. recessions}};
+    \node[black!60, right, scale=1.2] at (13.1,0.6) {Source: U.S. Bureau of Economic Analysis};
+    \node[black!60, right, scale=1.2] at (30.9,0.6) {fred.stlouisfed.org};
+    \node[right, scale=2.2] at (0.2,12.9) {\textbf{FRED}};
+
+    \node [right, yshift=-0.05cm] at (3,12.9) {
+			\includegraphics[scale=0.20]{PIB/Capture d’écran 2025-04-18 à 18.19.36.png}
+			};
+
+        \draw[color=blue!40, line width=1.5pt] (4,12.85)--(4.4,12.85);
+
+        \node[right,black!60c] at (4.7,12.85) {Real Gross Domestic Product};
+    
+\end{tikzpicture}
+\end{document}
