@@ -1,0 +1,155 @@
+\documentclass[border=20pt]{standalone}
+\usepackage{tikz}
+
+\newcommand{\graduation}[2][7.4]{
+ \draw[very thin, color=gray] (-0.1,#2)
+ -- (#1,#2);
+}
+\newcommand{\numligne}[1]{
+    \node[left, scale=0.5] at (-0.1,#1) {#1};
+}
+\newcommand{\petittrait}[1]{
+    \draw[very thin, color=gray] (#1,0)--(#1,-0.05);
+}
+\newcommand{\pays}[2]{
+    \node[rotate=45, scale=0.5] at (#1,-0.85) {#2};
+}
+
+\newcommand{\gris}[3]{
+    \draw[color=black!25, fill=black!25](#1,0) rectangle (#2,#3);
+}
+
+\newcommand{\blanc}[4]{
+    \draw[color=black, fill=white](#1,#2) rectangle (#3,#4);
+}
+\newcommand{\noir}[4]{
+    \draw[fill=black](#1,#2) rectangle (#3,#4);
+}
+\newcommand{\fonc}[4]{
+    \draw[color=gray,fill=black!40](#1,#2) rectangle (#3,#4);
+}
+
+\newcommand{\legend}[5]{
+    \draw[color=#1, fill=#2] (3.6,#3) rectangle (3.7,#4) node[right, yshift=-0.04cm, scale=0.5, color=black] {#5};
+}
+
+
+\begin{document}
+    \begin{tikzpicture}
+        \coordinate (a)at (7.6,-0.5) ;
+        \coordinate (b)at (0,-0.5);
+        \coordinate (c)at (0,2.5);
+        \coordinate (d)at (7.3,2.5);
+        
+        \draw[very thin, color= gray] (b) -- (c) ;
+        \draw[very thin, color=gray] (-0.7,-1.5) rectangle (7.7,2.7); 
+
+        \graduation{-0.5};
+        \graduation{0};
+        \graduation{0.5};
+        \graduation{1};
+        \graduation{1.5};
+        \graduation{2};
+        \graduation[7.3]{2.5};
+        
+        \numligne{-0.5};
+        \numligne{0};
+        \numligne{0.5};
+        \numligne{1};
+        \numligne{1.5};
+        \numligne{2};
+        \numligne{2.5};
+
+        \petittrait{0.5};
+        \petittrait{1};
+        \petittrait{1.5};
+        \petittrait{2};
+        \petittrait{2.5};
+        \petittrait{3};
+        \petittrait{3.5};
+        \petittrait{4};
+        \petittrait{4.5};
+        \petittrait{5};
+        \petittrait{5.5};
+        \petittrait{6};
+        \petittrait{6.5};
+        \petittrait{7};
+        \petittrait{7.4};
+
+        \pays{0.2}{Spain};
+        \pays{0.7}{Australia};
+        \pays{1.2}{Finland};
+        \pays{1.7}{Sweden};
+        \pays{2.2}{Germany};
+        \pays{2.7}{UK};
+        \pays{3.2}{Luxemburg};
+        \pays{3.7}{France};
+        \pays{4.2}{Portugal};
+        \pays{4.7}{Netherlands};
+        \pays{5.2}{Ireland};
+        \pays{5.7}{Belgium};
+        \pays{6.2}{Denemark};
+        \pays{6.7}{Greece};
+        \pays{7.2}{Italy};
+
+        \node[right, scale=0.5] at (2,-1.9) {$Source: European$ $Commission$ $   (2009).$};
+        \node[right, scale=0.65] at (-0.3,3){\textbf{Figure 7 -  Size and composition of fiscal stimulus plans in the EU15}};
+        
+        \gris{0.15}{0.35}{0.27};
+        \gris{0.65}{0.85}{1.1};
+        \gris{1.15}{1.35}{0.85};
+        \gris{1.65}{1.85}{0.57};
+        \gris{2.15}{2.35}{0.87};
+        \gris{2.65}{2.85}{1.15};
+        \gris{3.15}{3.35}{1.15};
+        \gris{3.65}{3.85}{0.23};
+        \gris{4.15}{4.35}{0.1};
+        \gris{4.65}{4.85}{0.3};
+        \gris{5.15}{5.35}{0.5};
+        \gris{5.65}{5.85}{0.08};
+        \gris{7.15}{7.35}{0.2};
+
+        \blanc{0.15}{0.27}{0.35}{1.40};
+        \blanc{0.65}{1.27}{0.85}{1.63};
+        \blanc{1.15}{1.1}{1.35}{1.28};
+        \blanc{3.65}{0.29}{3.85}{0.7};
+        \blanc{4.15}{0.3}{4.35}{0.6};
+        \blanc{4.65}{0.4}{4.85}{0.5};
+        \blanc{6.15}{0}{6.35}{0.08};
+        \blanc{7.15}{0}{7.35}{-0.2};
+
+        \noir{0.65}{1.1}{0.85}{1.27};
+        \noir{1.15}{0.85}{1.35}{1.1};
+        \noir{1.65}{0.57}{1.85}{1.1};
+        \noir{2.15}{0.87}{2.35}{1};
+        \noir{3.65}{0.23}{3.85}{0.29};
+        \noir{4.15}{0.1}{4.35}{0.3};
+        \noir{4.65}{0.3}{4.85}{0.4};
+        \noir{5.65}{0.08}{5.85}{0.18};
+
+        \fonc{0.15}{1.4}{0.35}{2.35};
+        \fonc{0.65}{1.63}{0.85}{1.75};
+        \fonc{1.15}{1.28}{1.35}{1.58};
+        \fonc{1.65}{1.1}{1.85}{1.4};
+        \fonc{2.15}{1}{2.35}{1.4};
+        \fonc{2.65}{1.15}{2.85}{1.4};
+        \fonc{3.65}{0.7}{3.85}{1};
+        \fonc{4.15}{0.6}{4.35}{1};
+        \fonc{4.65}{0.5}{4.85}{0.9};
+        \fonc{5.65}{0.18}{5.85}{0.37};
+        \fonc{6.15}{0.08}{6.35}{0.37};
+
+        \draw[very thin, color=gray, fill= white] (3.4,1.15) rectangle (7.5,2.45);
+
+        \legend{black!25}{black!25}{1.25}{1.35}{Mesures aimed at households};
+        \legend{black}{black}{1.55}{1.65}{increased spending on labor market measures};
+        \legend{black}{white}{1.85}{1.95}{Measures aimed at business};
+        \legend{gray}{black!40}{2.15}{2.25}{increased public investment};
+
+        
+    
+    
+    
+        
+    \end{tikzpicture}
+\end{document}
