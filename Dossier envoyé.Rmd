@@ -1,0 +1,750 @@
+---
+title: "Les médias et les facteurs sociodémographiques, des variables clés aux expositions des théories complotistes"
+author: "Paul Alexandre, Adrien"
+date: "2025-12-19"
+output: 
+  rmdformats::readthedown:
+    wide: true
+    self_contained: true
+    highlight: haddock
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Import des packages, include =FALSE}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(ggplot2) 
+library(ggridges)
+library(forcats)
+library(tidyr)
+library(modelsummary)
+library(patchwork)
+library(plotly)
+```
+
+
+```{r Import}
+data <- read.table("data/les-francais-et-l-information-arcom-2024-base-anonymisee.txt", quote ="",
+                   header = TRUE, 
+                   sep = "\t")
+
+```
+
+
+```{r recodage de variables}
+# Recodage variable sexe
+data$Genre <- ifelse(data$RS1_R==1,"Homme",
+                     "Femme")
+
+# Recodage niveau d'études
+data$Niv_etu <- ordered(data$RS5_R,
+                      levels=c(1:9),
+                      labels=c("Niveau primaire","Collège","lycèe","Tech court","Baccalauréats","Tech sup","Sup 1er cycle","Sup 2ème cycle","Sup 3ème cycle"))
+
+# Recodage Genre
+data$AGE <- ordered(data$RS2C_RECODE_AG_R,
+                 levels = 1:7,
+                 labels = c("15-17 ans", "18-24 ans",
+                            "25-34 ans", "35-44 ans",
+                            "45-59 ans", "60-69 ans", 
+                            "70 ans et plus"
+                            ))
+
+# Recode sources détaillé: 
+# Block 2
+data$Journaux <- ordered (data$SOURCES1BR_B2_R_1, 
+                          levels = c(1, 2, 3, 4, 7, 8, 9), 
+                          labels = c("Le Monde", "Le Parisien", "Le Figaro", "Les Echos", "Libération", "L'Humanité", "Médiapart"))
+
+
+
+# Block 4
+data$Chaîne_nat <- ordered(data$SOURCES1DR_B4_R_1,
+                            levels=c(1, 6, 2, 3, 5, 7),
+                            labels=c("TF1","M6", "France 2","France 3","Arte","C8"))
+
+# Block 5
+data$Chaîne_conti <- ordered(data$SOURCES1ER_B4_R_1,
+                             levels=c(1, 2, 3, 4),
+                             labels=c("Franceinfo la chaîne de TV","LCI","BFM TV","CNews"))
+
+# Block 6
+data$media_ind <- ordered(data$SOURCES1FR_R_1,
+                                  levels=c(1, 6, 8, 10, 12),
+                                  labels=c("Blast","Konbini","Brut","Hugo Décrypte","Autre créateur·rice \n (YouTube, Twitch)"))
+
+#Recodage confiance vis-à-vis de l'info
+data$confiance <- ordered(data$CONF1_R,
+                          levels=c(1:5),
+                          labels=c("Confiant","Plutôt confiant","Mitigé","Plutôt méfiant","Méfiant"))
+
+data2 <- data[!is.na(data$NOU1_R),]
+data2$politique <- ifelse(data2$NOU1_R %in% c(1,2),"Extrême gauche",
+                         ifelse(data2$NOU1_R %in% c(3:5),"Gauche",
+                                ifelse(data2$NOU1_R == 6,"Centre",
+                                       ifelse(data2$NOU1_R %in% c(7:9),"Droite","Extrême droite"))))
+
+data2$politique <- data2$politique |> 
+  ordered(levels=c("Extrême gauche","Gauche","Centre","Droite","Extrême droite"))
+```
+
+```{r fonction de test}
+test_moy <- function(...){
+  mu0 <- mean(data$Croy_complot)
+  test <- t.test(...,mu=mu0, alternative="two.sided")
+  output <- c(mu0,test$estimate, test$p.value)
+  names(output) <- c("moyenne",names(test$estimate), "p-value")
+  return(output)
+}
+test_ <- function(sous_df) {
+  c(Effectif = sum(!is.na(sous_df$Croy_complot)),
+    test_moy(sous_df$Croy_complot)
+  )
+}
+color_pvalue <- function(vec){
+  ifelse(vec < 0.05, "red3",
+                "grey")
+}
+color_moy <- function(vec){
+  ifelse(vec>3.5,"red","blue")
+}
+```
+
+# **Introduction**
+
+Cette analyse s'appuiera sur une étude menée par l'[ARCOM](https://www.arcom.fr/) (Autorité de régulation de la communication audiovisuelle et numérique) intitulée "Les Français et l'information". Cette étude repose sur des questions à choix simples ou multiples relatives aux sujet de l'information.
+
+En France, et plus précisément en 2025, l'information est **omniprésente** dans notre quotidien. Elle émane de diverses sources : la télévision, la radio, la presse écrite (revues, journaux), les médias indépendants, les plateformes numériques, ou encore les échanges interpersonnels. Les centres d'intérêt des individus sont variés, et chacun accorde une importance singulière à l'actualité. Cependant, cette **exposition massive** peut se révéler problématique pour certains, notamment par la diffusion de fausses informations, de **théories complotistes** ou de contenus manipulateurs.
+
+***C'est pourquoi on va se demander dans notre étude si la croyance et l'exposition aux théories complotistes varient en fonction des médias consultés, de variables sociodémographiques et des convictions politiques.***
+
+Nous étudierons dans un premier temps le lien entre la croyance aux théories complotistes et plusieurs facteurs sociodémographiques, puis les variations d'exposition en fonction des médias. L'étude se terminera par un aparté politique et la conclusion générale.
+
+***
+>## **Les thématiques d'Analyse**
+
+### **Les Variables étudiées**
+
+Pour ce faire, nous articulerons notre analyse autour des thématiques suivantes :
+
+* **Profil sociodémographique :**
+    * Le sexe
+    * Le niveau d’étude
+    * L’âge
+* **Nature des médias consultés :**
+    * La presse écrite (journaux)
+    * La télévision :
+        * Les chaînes nationales (généralistes)
+        * Les chaînes d’information en continu
+    * Les médias indépendants
+* **Les théories complotistes^1^** (croyance mesurée sur quelques thématiques clés)
+* **Les convictions politiques**
+
+### **Les théories complotistes**
+
+**L'enquête sur ce sujet porte sur 8 théories :** 
+
+  - *Les Américains n’ont jamais marché sur la lune*  
+  - *L’épidémie Covid s’est répandue accidentellement depuis la ville de Wuhan en Chine*  
+  - *Il existe un complot juif à l’échelle mondiale*  
+  - *C’est la CIA qui a abattu les tours jumelles à New York le 11 septembre*  
+  - *Le gouvernement est de mèche avec l’industrie pharmaceutique pour cacher la nocivité des vaccins*  
+  - *Lady Diana est décédée dans un accident de voiture sous le Pont de l’Alma*  
+  - *Le réchauffement climatique actuel n’est pas causé par l’homme*  
+  - *Donald Trump est le véritable vainqueur des dernières élections américaines*  
+
+À partir de ces 8 théories, les questions posées sont :  
+
+- L’avez-vous lue, vue ou entendue ?  
+- Pensez-vous que cela est exact ?  
+
+
+Ainsi, pour créer une analyse pertinente et éviter d’étudier les théories une par une, nous allons créer **deux variables** qui renvoient, pour chaque répondant, une valeur entre 0 et 10 (0 correspondant à une exposition à aucune de ces théories et 10 à toutes les théories) :
+
+* Avec la première variable relative au fait d'avoir déja été  exposé aux théories;
+* Et la deuxième lièe à la croyance à ces théories.
+
+
+***
+```{r creation variables complotistes}
+# Recodage exposition théorie complotiste
+
+data$NONEnt_complot_brut <- data |> 
+  select(COMPLOT1_R_1 : COMPLOT1_R_8) |> 
+  rowSums()
+data$Ent_complot <- round((16-data$NONEnt_complot_brut)/8*10 , 2)
+
+data$NONCROY_complot_brut <- data |> 
+  select(COMPLOT2_R_1:COMPLOT2_R_8) |> 
+  rowSums()
+data$Croy_complot <- round((16-data$NONCROY_complot_brut)/8*10,2)
+```
+
+
+# **Variables sociodémographiques et croyance en théorie complotiste**
+
+Nous allons commencer par examiner comment les *variables sociodémographiques* peuvent avoir un impact sur la croyance en ces théories.
+
+Pour ce faire, nous allons étudier le *genre*, le *niveau d’études* et l’*âge*.
+
+***
+>## **Le genre**
+
+Pour la comparaison entre *les femmes* et *les hommes*, nous allons construire un histogramme pour chaque genre.
+
+Cependant, les femmes représentent `r round(sum(data$Genre=="Femme")/3346*100,1)` % des répondants, ainsi un histogramme de fréquence ne serait pas intéressant étant donné la présence plus importante des femmes parmi les répondants aux sondages. 
+
+Ainsi, nous allons représenter cet histogramme en **densité**.
+
+```{r histogram genre,fig.align='center', fig.height = 4, fig.width = 7}
+library(ggtext)
+data |> ggplot()+ aes(x = Croy_complot,fill = Genre,color=Genre)+
+  geom_histogram(aes(y = after_stat(density)),
+                 breaks = seq(0, 10, 
+                  length.out =10))+
+  labs(y=" ",
+       x="Niveau de croyance sur 10",
+       caption = "Sources : sondage pour l'Arcom, data.gouv",
+       title = "Niveau de croyance aux théories",
+       subtitle = "En fonction du genre")+
+  theme_dark()+
+  theme(legend.position = "none")+
+  facet_wrap(~Genre)+
+  scale_fill_manual(values = c("slateblue3", "gold")) +
+  scale_color_manual(values = c("gold", "slateblue3"))+
+  annotate(geom = "text", fontface="bold",
+           x = 4.9, y = 0.258,
+           label = "Les 4%",col="gold") +
+  annotate(geom = "curve", col="black",
+           angle = 110, curvature = 0.25,
+           x = 4.6, y = 0.205, 
+           arrow = arrow(length = unit(2, "mm")),
+            xend = 5, yend = 0.25 )+
+  annotate(geom="rect", 
+           xmin = 3.3, xmax = 4.46, 
+           ymin = 0.182, ymax = 0.222, 
+           alpha = 0.5, fill = "white")
+```
+
+Il n’existe **pas de différences significatives entre les deux distributions**, seules des différences précises sont à énoncer.
+
+Quelques tendances révélées par les graphiques : 
+
++ Un pic plus élevé des hommes pour un niveau de croyance d’environ 25 % des théories.  
++ Une différence d’environ **`r round((hist(data$Croy_complot[data$Genre=="Femme"], breaks=seq(0, 10, length.out=10), freq=FALSE)$density[4] - hist(data$Croy_complot[data$Genre=="Homme"], breaks=seq(0, 10, length.out=10), freq=FALSE)$density[4])*100,1)` %** pour les femmes pour une croyance de 4 théories sur 10.  
++ Les hommes croient davantage pour plus de 8 théories sur 10.
+                                        
+***
+
+>## **Niveau d'étude**
+
+Dans un premier temps, nous allons présenter **la répartition des niveaux scolaires des répondants**, cela nous permettra d'introduire dans un tableau **une comparaison des croyances aux théories complotistes en fonction du niveau d’étude**, afin que, par la suite, soit effectué un **test de comparaison à la moyenne** pour voir s'il existe des **différences significatives en fonction du niveau d’étude**.
+
+### **Répartition des niveaux scolaires**
+
+Les niveaux scolaires des répondants aux sondages sont :
+
+* Niveau avant ou équivalent au baccalauréat :
+  * Niveau primaire
+  * Collège
+  * Lycée
+  * Technique court
+  * Baccalauréat
+* Niveau post-bac :
+  * Technique supérieure
+  * Supérieur 1^er^ cycle
+  * Supérieur 2^ème^ cycle
+  * Supérieur 3^ème^ cycle
+
+Le niveau scolaire le plus représenté est le **baccalauréat**, représentant `r round(sum(data$Niv_etu=="Baccalauréats")/nrow(data)*100, 1)` % des répondants.  
+Les diplômés du supérieur représentent au total `r round((100+458+423+525)/nrow(data)*100,2)` % des participants interrogés par le sondage, avec un effectif total de **`r 525+423+458+100`** individus, le reste disposant d'un niveau scolaire inférieur ou égal au baccalauréat.
+
+Nous constatons donc que le sondage a voulu assurer une certaine **hétérogénéité** en terme de niveau scolaire des répondants afin de disposer d’échantillons pouvant être étudiés.
+
+
+### **Niveau d'étude et théories complotistes: analyse par tableaux de proportion**
+
+À l'inverse de l'étude sur le genre, nous allons utiliser une variable de croyance qui sera **codée de 0 à 8** et qui dénombre précisément **le nombre de théories auxquelles les protagonistes croient**.
+
+```{r création variable complot 2}
+data$Croy_complot2 <- round(16-data$NONCROY_complot_brut,2)
+data$Croy_complot3 <- data$Croy_complot2
+```
+
+- La construction d'un tableau présentant la répartition des croyances aux théories complotistes permet d'arriver à la conclusion suivante :  
+  + **Pour l'ensemble des niveaux d'éducation (hormis le collège), la part la plus importante est celle des répondants croyant à 2 théories sur 8**.  
+
+Cette conclusion est claire, mais elle ne permet pas de répondre au sujet, qui est *"est-ce que le niveau de diplôme a un impact sur la croyance aux théories complotistes"*.
+
+Ainsi, pour répondre à la problématique, nous allons réunir en une seule catégorie les individus qui croient à 4 théories ou plus afin d'obtenir un résultat parlant.
+
+
+```{r tableau niveau étude}
+data$Croy_complot3[data$Croy_complot3>=4]<-"Plus de 4 complots"
+data$Croy_complot3 <- as.factor(data$Croy_complot3)
+round(proportions(table(data$Niv_etu,data$Croy_complot3),margin=1),2) |> 
+  kable(col.names = c(0:3,"Plus de 4 complots"), 
+        caption="Nombre de théories adhérées en fonction du niveau d'étucation") |> 
+  kable_styling(full_width = FALSE,
+                position = "center",
+                bootstrap_options = c("striped", "hover", "condensed"), 
+                font_size = 12) |> 
+  group_rows(start_row = 8,end_row = 9,"Supérieur long") |> 
+  group_rows(start_row = 1,end_row = 2,"Sans/Peu diplomé") |> 
+  group_rows(start_row = 3,end_row = 5,"Secondaire") |> 
+  group_rows(start_row = 6,end_row = 7,"Supérieur court") |> 
+  column_spec(1, bold=TRUE) |> 
+  column_spec(6,color = c(rep("red",5),rep("blue",4))) |> 
+  column_spec(6, background = c("lightblue",rep("white",7),"lightblue")) 
+  
+
+```
+
+- Ce tableau nous permet donc de pouvoir constater les tendances que l'on recherchait : 
+  + **Plus le niveau d'étude de l'individu augmente, moins il croit aux théories complotistes**.  
+  + En effet, pour un niveau de diplôme inférieur ou égal au baccalauréat, la part est supérieure ou égale à <span style="color: red;">29%</span>, et pour les diplômés supérieurs au baccalauréat, la part est inférieure ou égale à <span style="color: blue;">23%</span>.  
+  + Différences marquantes entre les catégories de diplômés les plus éloignées : <span style="background-color: lightblue;">44%</span> des individus au niveau primaire croient à au moins 4 théories contre seulement <span style="background-color: lightblue;">15%</span> des diplômés du supérieur 3^ème^ cycle.
+  
+### **Niveau d'étude et théories complotistes: analyse par test de moyenne**
+
+Afin d’étayer la conclusion présentée précédemment, nous procédons à un **test de conformité d’une espérance à un standard** pour chaque **niveau d’études**.
+
+Dans ce type de test, on compare un **paramêtre inconnu**, représenté par la **moyenne estimée** de chacune des modalités (âge), à un **standard de référence** noté : $\mu_0 = 3{,}5$
+
+où $\mu_0$ correspond à la **moyenne globale du niveau de croyances aux théories complotistes**.
+
+#### **Méthodologie**
+
+Les **hypothèses statistiques** associées au test de conformité sont définies comme suit :
+
+$$
+\begin{cases}
+H_0 : \mu = \mu_0 \\
+H_1 : \mu \neq \mu_0
+\end{cases}
+$$
+
+Le **seuil de signification** est fixé à : $\alpha = 5\%$
+
+#### **Présentation du tableau**
+
+Le tableau présente **la taille de l’échantillon**, **la moyenne globale servant de standard**, **la moyenne estimée pour chacun des échantillons**, ainsi que **la p-value^1^** associée au test statistique.
+
+La ***p-value (probabilité critique)*** correspond à la valeur limite du seuil de signification $\alpha$ pour laquelle l’hypothèse nulle $H_0$ serait rejetée compte tenu des observations. Plus la valeur de la p-value est faible, plus la probabilité de commettre une erreur en rejetant l’hypothèse nulle est réduite.
+
+Lorsque la **moyenne de l’échantillon** est affichée en **rouge**, cela indique qu’elle est **supérieure au standard**, tandis qu’un affichage en **bleu** signifie qu’elle est **inférieure au standard**.
+
+De même, une **p-value affichée en rouge** conduit au **rejet de l’hypothèse nulle $H_0$** (p-value $< 0{,}025$), alors qu’une **p-value affichée en gris** indique que l’on **ne peut pas rejeter l’hypothèse nulle** (p-value $> 0{,}025$).
+
+#### **Le test**
+
+```{r test niveau étude}
+res_test <- sapply(split(data, data$Niv_etu), 
+       FUN = test_) |> t()
+res_test |> 
+  kable( digits = c(0,2,2,6,2,2)) |> 
+  kable_styling(full_width = FALSE,
+                position = "center",
+                bootstrap_options = c("striped", "hover", "condensed"), 
+                font_size = 12) |> 
+  column_spec(5, color = color_pvalue(res_test[,4])) |> 
+  column_spec(1, bold=TRUE) |> 
+  column_spec(4,color = color_moy(res_test[,3]),bold = TRUE) |> 
+  group_rows(start_row = 8,end_row = 9,"Supérieur long") |> 
+  group_rows(start_row = 1,end_row = 2,"Sans/Peu diplomé") |> 
+  group_rows(start_row = 3,end_row = 5,"Secondaire") |> 
+  group_rows(start_row = 6,end_row = 7,"Supérieur court")
+```
+
+#### **Conclusion du test**
+
+Pour l’ensemble des modalités de niveau d’études, à l’exception des niveaux *lycée* et *baccalauréat*, la **p-value est inférieure à 2,5 %**. Nous **rejetons donc l’hypothèse nulle $H_0$**, ce qui signifie que les **moyennes estimées diffèrent du standard** $\mu_0 = 3{,}5$.
+
+Par ailleurs, pour les **diplômés de l’enseignement supérieur**, <span style="color: blue;">la moyenne estimée est inférieure au standard</span>. À l’inverse, pour les autres niveaux d’études, <span style="color: red;">les moyennes estimées sont supérieures au standard</span>.
+
+Ainsi, pour les niveaux *primaire*, *collège* et *technique court*, l’hypothèse nulle $H_0$ est rejetée en raison d’une **moyenne estimée significativement supérieure au standard**. En revanche, pour les niveaux *de l’enseignement supérieur*, l’hypothèse nulle est rejetée car la **moyenne estimée est significativement inférieure au standard**.
+
+#### **Interprétation **
+
+Les résultats issus de ce test vont dans le **même sens que les précédents**. En effet, les **moyennes du niveau de croyances aux théories complotistes** observées chez les *moins diplômés* sont **plus élevées** que celles des *plus diplômés*. 
+
+On peut ainsi conclure que les **individus les moins diplômés ont tendance à adhérer davantage aux théories complotistes** que les individus les plus diplômés.
+
+***
+>## **L' Âge**
+
+Pour l'étude sur l'âge, nous reprenons notre variable de niveau de croyance de départ, codée de 0 à 10.
+
+```{r histogram age, message=FALSE}
+data |> ggplot() + aes(x=Croy_complot,fill=AGE,color=AGE)+
+  geom_histogram(aes(y = after_stat(density)),
+                 breaks = seq(0, 10, 
+                              length.out =10))+
+  labs(y="",
+       x="Niveau de croyance",
+       title = "Niveau de croyance aux théories complotistes", 
+       subtitle = "En fonction de l'âge",
+       caption = "Sources : sondage pour l'Arcom, data.gouv")+
+  theme_dark()+
+  theme(legend.position = "none")+
+  facet_wrap(~AGE)
+```
+
+- Les tendances montrent que :  
+  + pour **les plus jeunes**, le niveau de croyances aux théories complotistes est **plus faible**. En effet, les fonctions de densité des plus jeunes sont plus importantes pour de faibles niveaux de croyance.  
+  + À l'inverse, à partir de **60 ans**, on constate que les densités sont bien plus élevées pour des niveaux de croyances **plus élevés**.  
+  + On peut le constater également avec les moyennes : (*`r round(mean(data$Croy_complot[data$AGE=="18-24 ans"]),2)`* pour les 18-24 ans, *`r round(mean(data$Croy_complot[data$AGE=="70 ans et plus"]),2)`* pour les 70 ans et plus).
+
+**On semble arriver à montrer que plus l'âge augmente, plus le niveau de croyance augmente.**
+
+- En étudiant plus précisément les théories, nous avons pu découvrir un fait assez original auquel on pouvait s'attendre.
+
+```{r tableau age}
+round(proportions(table(data$AGE,data$COMPLOT2_R_7),margin=1)*100,2) |> 
+  kable(col.names=c("adhèsion","refus"),
+        caption = "Le réchauffement climatique n'est pas causé par l'homme") |> 
+  kable_styling(full_width = FALSE,position = "center",bootstrap_options = c("striped", "hover", "condensed")) |> 
+  column_spec(2,background = c(rep(" ",3),rep("lightblue",4)),bold = c(rep(FALSE,3),rep(TRUE,4))) |> 
+  column_spec(1,bold = TRUE)
+```
+
+Les plus anciens (+ de 35 ans) semblent convaincus par la théorie selon laquelle  
+<span style="background-color: lightblue;">le réchauffement climatique ne serait pas causé par l'homme !</span>
+![](capture.png){width=20%}
+
+***
+
+# **Les théories complotistes, une croyance plus ou moins développé selon le canal d'information utilisé ** 
+
+Après avoir abordé les **déterminants individuels**, intéressons-nous désormais aux **facteurs liés aux pratiques médiatiques**.  
+
+En effet, les médias constituent un *vecteur majeur* d'exposition aux **théories complotistes**.  
+
+Nous étudierons donc, dans cette partie, le rôle des **réseaux d'information** dans la *diffusion* des théories complotistes. 
+
+***
+>## **L' ensemble des médias étudiés ** 
+
+Dans le cadre de l'analyse des **mécanismes de diffusion de l'information**, il est nécessaire d'examiner la **diversité des médias** qui constituent l'*environnement informationnel* de notre projet.  
+
+Les médias, qu'ils soient **traditionnels** ou **numériques**, représentent des *systèmes structurés*. Leur organisation influence directement la manière dont les individus perçoivent et interprètent l'information à laquelle ils sont exposés.  
+
+Cette partie vise donc à établir une **typologie objective** des différents médias, dans le but de fournir une **base solide** pour l'étude de leur impact sur la **propagation** et les **représentations** que font les individus à l'égard des *« fakes news »*.
+
+```{r Journaux}
+
+p1 <- data |> 
+  filter(!is.na(Journaux)) |> 
+  mutate(facette = "Journaux") |>
+  ggplot() +
+  aes(x = fct_rev(fct_infreq(Journaux))) +
+  geom_bar(col = "goldenrod1", fill = "navy") + 
+  geom_text(aes(label=after_stat(count)), stat = "count",
+            hjust = -0.2, col = "goldenrod1") +
+  ylim(0,700) +
+  labs(y = "", x = " ") +
+  facet_wrap(~facette) +
+  coord_flip() + 
+  theme_dark()
+
+```
+
+```{r Chaines nationales}
+
+p2 <-  data |> 
+  filter(!is.na(Chaîne_nat)) |>
+  mutate(facette = "Chaînes Nationales") |>
+  ggplot() +
+  aes(x = fct_rev(fct_infreq(Chaîne_nat))) +
+  geom_bar(col = "goldenrod1", fill = "firebrick4") + 
+  geom_text(aes(label=after_stat(count)), stat = "count",
+            hjust = -0.2, col = "goldenrod1") +
+  ylim(0,2000) +
+  labs(y = "", x = " ") +
+  facet_wrap(~facette) +
+  coord_flip() + 
+  theme_dark()
+
+```
+
+```{r Chaines d informations }
+
+p3 <- data |> 
+  filter(!is.na(Chaîne_conti)) |> 
+  mutate(facette = "Chaînes d'information \n en continu ") |>
+  ggplot() +
+  aes(x = fct_rev(fct_infreq(Chaîne_conti))) +
+  geom_bar(col = "goldenrod1", fill = "palegreen4") + 
+  geom_text(aes(label=after_stat(count)), stat = "count",
+            hjust = -0.2, col = "goldenrod1") +
+  ylim(0,700) +
+  labs(y = "", x = " ") +
+  facet_wrap(~facette) +
+  coord_flip() + 
+  theme_dark()
+
+```
+
+```{r Médias Indépendants}
+
+p4 <- data |> 
+  filter(!is.na(media_ind)) |> 
+  mutate(facette = "Medias indépendants") |>
+  ggplot() +
+  aes(x = fct_rev(fct_infreq(media_ind))) +
+  geom_bar(col = "goldenrod1", fill = "paleturquoise4") + 
+  geom_text(aes(label=after_stat(count)), stat = "count",
+            hjust = -0.2, col = "goldenrod1") +
+  ylim(0,400) +
+  labs(y = "", x = " ") +
+  facet_wrap(~facette) +
+  coord_flip() + 
+  theme_dark()
+
+```
+
+```{r répartition des grpahiques}
+
+(p1 + p2) / (p3 + p4)
+
+```
+
+```{r, echo=FALSE , results='hide'}
+total_media <- (sum(!is.na(data$Journaux)) +
+  sum(!is.na(data$Chaîne_nat)) +
+  sum(!is.na(data$Chaîne_conti)) +
+  sum(!is.na(data$media_ind)))
+
+sum(!is.na(data$Chaîne_nat)) / total_media* 100
+sum(!is.na(data$Chaîne_conti)) / total_media * 100
+sum(!is.na(data$Journaux)) / total_media * 100
+sum(!is.na(data$media_ind)) / total_media * 100
+```
+
+Nous présentons ci-dessus les **différents médias** utilisés dans l’étude réalisée par l’ARCOM. Il apparaît que les **médias indépendants** ne constituent qu’une *proportion très faible* de l’ensemble des canaux analysés. En effet, ces derniers représentent **`r round(sum(!is.na(data$media_ind)) / total_media * 100, 2)`%**.  
+
+Pour cette raison, les sections suivantes se concentreront principalement sur les **journaux** ainsi que sur les **chaînes nationales**. Ces deux catégories de médias offrent une représentation *suffisamment pertinente* de leur secteur respectif et présentent des **lignes éditoriales plus développées** que celles proposées par les **chaînes d’information en continu**, malgré le fait que cette dernière représente **`r round(sum(!is.na(data$Chaîne_conti)) / total_media * 100, 2)`%**.
+
+***
+>## **L' exposition des narratifs conspirationnistes au coeur des médias  **
+
+Après avoir identifié chaque média qui composait notre sujet, il nous semble intéressant de débuter par l'étude simultanée des châines publiques et de la presse
+
+**Afin d’en présenter les effets**, nous construirons deux *diagrammes de densité* permettant d’analyser les résultats en fonction de notre **variable de niveau d’exposition**.  
+Celle-ci s’étend de **0**, correspondant à une personne n’ayant **jamais entendu de théorie**, à **10**, correspondant à un individu ayant déjà été exposé à **l’ensemble de ces mythes**.
+
+```{r Exposition aux fakes News chaine TV, message=FALSE,fig.height = 5, fig.width =6.5,fig.align='center'}
+p1 <- data |> 
+  filter(!is.na(Chaîne_nat)) |> 
+  ggplot()+
+  aes(x=Ent_complot,fill=Chaîne_nat,y=Chaîne_nat) +
+  geom_density_ridges(alpha = 0.8, 
+                      col = NA, 
+                      scale = 6) +
+  labs(x="Théories complotistes déjà entendues",
+       y=" ", 
+       title = "Exposition aux théories complotistes",
+       subtitle = "En fonction de la Chaine Nationale",
+       caption = "Sources : sondage pour l'Arcom, data.gouv") +
+  theme_dark() +
+  theme(legend.position = "none")
+```
+
+```{r Exposition aux fakes news Journaux, message=FALSE,fig.height = 5, fig.width = 6.5, fig.align='center'}
+
+p2 <- data |> 
+  filter(!is.na(Journaux)) |> 
+  ggplot()+
+  aes(x=Ent_complot,fill=Journaux,y=Journaux) +
+  geom_density_ridges(alpha = 0.8, col = NA,
+                      scale = 6) +
+  labs(x="Théories complotistes déjà entendues",
+       y=" ", 
+       title = "Exposition aux théories complotistes",
+       subtitle = "En fonction de la Presse",
+       caption = "Sources : sondage pour l'Arcom, data.gouv") +
+  theme_dark() +
+  theme(legend.position = "none")
+```
+
+```{r combinaison journaux et chaines , message=FALSE,  fig.height = 5, fig.width = 10, fig.align='center'}
+p1 + p2
+```
+
+#### **Les chaînes publiques **
+
+Nous pouvons observer la distribution de l’exposition aux théories complotistes déjà entendues par les téléspectateurs des différentes chaînes nationales (1^er^ graphique)  
+Il est important de rappeler que le fait d’avoir déjà entendu une *fake news* ne reflète en rien l’adhésion à celle-ci.
+
+Ainsi, une chaîne comme **Arte** présente un pic relativement marqué (autour de 8 à 10 théories déjà entendues) et une variabilité plus faible que les autres. Cette situation peut s’expliquer par la diffusion régulière de documentaires visant, dans certains cas, à informer, contextualiser ou déconstruire ces théories. Cela traduit davantage une **connaissance** de ces fausses informations qu’une croyance en leur véracité.
+
+À l’inverse, **C8** présente une variabilité plus élevée et un pic moins net qu’Arte. Elle reflète plutôt une exposition diversifiée et plus importante aux théories complotistes.
+
+#### **La presse **
+
+Ces observations montrent que l’exposition aux théories complotistes varie sensiblement selon les médias écrits (2^ème^ graphique)  
+**Mediapart** apparaît comme le média où l’exposition est la plus élevée, ce qui pourrait s’expliquer par une démarche éditoriale axée sur l’enquête, l’analyse approfondie et la déconstruction d’affirmations douteuses.
+
+À l’inverse, **L’Humanité** présente une exposition plus faible à ces théories, ce qui peut être lié à une ligne éditoriale distincte, davantage centrée sur des enjeux politiques et sociaux spécifiques plutôt que sur la couverture de contenus complotistes ou leur analyse.
+
+Les médias généralistes tels que **Le Monde**, **Le Figaro** et **Le Parisien** affichent une exposition plus modérée que Mediapart, traduisant une ligne éditoriale plus orientée vers l’actualité générale, la vérification de l’information et un traitement plus équilibré des sujets sensibles.
+
+*Tous les médias n’exposent pas leurs lecteurs aux théories complotistes de la même manière : la nature du contenu éditorial joue un rôle majeur dans ce niveau d’exposition.*
+
+***
+>## **La croyance des narratifs conspirationnistes selon les médias**
+
+**Nous avons étudié l’exposition aux théories**, concentrons-nous maintenant sur *la croyance à ces dernières*.  
+**Ainsi**, nous nous pencherons dans un premier temps sur **la presse**, puis sur *les chaînes nationales*.
+
+### Étude sur la presse 
+
+**Afin de l’étudier au mieux**, nous utiliserons un *tableau croisé* afin de bien capter **la distribution du nombre de théories complotistes adhérées en fonction du journal lu**.
+
+```{r Journaux adhérer aux Fakes News}
+
+tab_journaux <- round(proportions(table(data$Journaux,data$Croy_complot3),margin=1),2)
+colors <- rep("firebrick", nrow(tab_journaux))
+colors[c(1,3,5,6,7)] <- "navy"
+
+tab_journaux |> 
+  kable(col.names = c(0:3,"Plus de 4 complots"), caption="Nombre de théories adhérées en fonction du journal lu") |> 
+  kable_styling(full_width = F, font_size = 15, position = "center",bootstrap_options = c("striped", "hover", "condensed")) |> 
+   group_rows(start_row = 1,end_row = 2,"Centre") |> 
+  group_rows(start_row = 3,end_row = 4,"Droite") |> 
+  group_rows(start_row = 5,end_row = 7,"Gauche") |> 
+  column_spec(1, bold=TRUE) |> 
+  column_spec(6, color = colors)
+
+```
+
+Ce tableau illustre la proportion de lecteurs adhérant à *0, 1, 2, 3 ou plus de 4 théories complotistes*, selon le journal qu’ils consultent. Les résultats sont organisés en fonction de la **ligne éditoriale des médias**.  
+Voici ce qu’il en ressort :  
+
+
+- **Le Monde** compte **`r round(sum(data$Journaux == "Le Monde" & data$Croy_complot3 == "Plus de 4 complots", na.rm = TRUE) / sum(data$Journaux == "Le Monde", na.rm = TRUE)*100, 0)` %** de ses lecteurs adhérant à plus de 4 théories complotistes.  
+- **Le Parisien**, quant à lui, atteint **`r round(sum(data$Journaux == "Le Parisien" & data$Croy_complot3 == "Plus de 4 complots", na.rm = T) / sum(data$Journaux == "Le Parisien", na.rm = T)*100, 0)` %**, ce qui en fait l’un des journaux où la croyance est la plus répandue.  
+- **Le Figaro** affiche un taux de **`r round(sum(data$Journaux == "Le Figaro" & data$Croy_complot3 == "Plus de 4 complots", na.rm = TRUE) / sum(data$Journaux == "Le Figaro", na.rm = TRUE)*100, 0)` %**, légèrement inférieur à celui du Parisien.  
+- **Les Échos**, avec **`r round(sum(data$Journaux == "Les Echos" & data$Croy_complot3 == "Plus de 4 complots", na.rm = TRUE) / sum(data$Journaux == "Les Echos", na.rm = TRUE)*100, 0)` %**, se situent au même niveau que Le Parisien, indiquant une tendance similaire parmi leurs lecteurs.  
+- **Libération** enregistre un pourcentage de **`r round(sum(data$Journaux == "Libération" & data$Croy_complot3 == "Plus de 4 complots", na.rm = TRUE) / sum(data$Journaux == "Libération", na.rm = TRUE)*100, 0)` %**, légèrement en dessous des médias précédents.  
+- **L’Humanité**, avec **`r round(sum(data$Journaux == "L'Humanité" & data$Croy_complot3 == "Plus de 4 complots", na.rm = TRUE) / sum(data$Journaux == "L'Humanité", na.rm = TRUE)*100, 0)` %**, se distingue par une proportion plus faible de lecteurs adhérant à ces théories.  
+- Enfin, **Mediapart** présente un taux de **`r round(sum(data$Journaux == "Médiapart" & data$Croy_complot3 == "Plus de 4 complots", na.rm = TRUE) / sum(data$Journaux == "Médiapart", na.rm = TRUE)*100, 0)` %**, se positionnant entre Libération et Le Figaro.   
+
+Ces résultats révèlent que **Le Parisien** et **Les Échos** se démarquent par une proportion plus élevée de lecteurs adhérant à plus de 4 théories complotistes, tandis que **L’Humanité** affiche le taux le plus bas.
+ 
+### Étude sur les chaînes publiques 
+
+**À l’instar de la partie précédente**, la *méthodologie analytique* reste la même. En effet, nous construisons un **tableau croisé** ; cependant, *le contenu analysé diffère*.  
+Nous utiliserons pour ce faire **l’effectif**, **la moyenne** et **l’écart-type** (*et, indirectement, la variance*).
+
+```{r Chaines Nationale adherer aux Fakes News}
+
+data |> 
+  filter(!is.na(Chaîne_nat)) |>
+  group_by(Chaîne_nat) |> 
+  summarise(
+    Effectif = n(),
+    Moyenne = round(mean(Croy_complot, na.rm = TRUE), 2),
+    ET = round(sd(Croy_complot, na.rm = TRUE), 2), 
+  ) |> 
+  rename("Chaînes Nationales" = Chaîne_nat) |>
+  kable(caption = "Croyance aux complots par chaînes") |> 
+  kable_styling(full_width = F, font_size = 15,  position = "center",bootstrap_options = c("striped", "hover", "condensed")) |> 
+  group_rows(start_row = 1,end_row = 2,"Centre") |> 
+  group_rows(start_row = 3,end_row = 4,"Service public") |> 
+  group_rows(start_row = 5,end_row = 5,"Centre-gauche / Progressiste") |>
+  group_rows(start_row = 6, end_row = 6, "Droite / Droite conservatrice") |> 
+  column_spec(1, bold=TRUE) |> 
+  column_spec(3,color = c(rep("black",5),rep("firebrick"))) |> 
+  column_spec(3, bold = c(rep(FALSE, 5),TRUE)) |> 
+  column_spec(4,color = c(rep("black",5),rep("firebrick"))) |> 
+  column_spec(4, bold = c(rep(FALSE, 5),TRUE))
+  
+```
+
+Le tableau présente les **moyennes de croyances aux théories complotistes** parmi les téléspectateurs (intérogés lors de l'étude) de différentes chaînes télévisées, classées par orientations politiques.
+
+On observe plusieurs tendances :  
+
+- **Chaînes privées (Centre)** : TF1 et M6 affichent une croyance moyenne similaire, suggérant que, malgré des tailles d’audience très différentes, les opinions des téléspectateurs sont globalement comparables. La dispersion des réponses est légèrement plus marquée pour TF1.  
+
+- **Service public** : France 2 se distingue par une croyance plus faible aux théories complotistes, tandis que France 3 montre une variabilité plus importante des opinions parmi ses téléspectateurs.  
+
+- **Centre-gauche / Progressiste** : Arte se situe à un niveau intermédiaire de croyance, avec une variation modérée des réponses, reflétant une homogénéité relative de ses téléspectateurs.  
+
+- **Droite / Droite conservatrice** : C8 présente la croyance la plus élevée et la plus dispersée, indiquant à la fois une adhésion plus marquée aux théories complotistes et une diversité d’opinions importantes parmi son public.  
+
+Ces résultats suggèrent que la **croyance aux théories complotistes varie selon l’orientation éditorialiste des chaînes**. Les chaînes de droite conservatrice tendent à afficher des niveaux plus élevés et plus dispersés, tandis que le service public et les chaînes de centre-gauche montrent des niveaux plus modérés et homogènes. Les chaînes nationales du centre se situent entre ces deux cas.
+
+***
+# **Aparté (partie politique et théorie complotiste)**
+
+Pour finir notre document d'analyse, nous avons pu identifier un fait assez marqué concernant le **lien entre les théories complotistes et les partis politiques**. Nous allons donc nous baser sur notre variable de niveau de croyance en fonction du parti politique suivi par les protagonistes.
+
+La base de données regroupe une variable dont la question posée est :  
+*Sur une échelle de 0 à 10, où 0 correspond à la gauche et 10 correspond à la droite, où diriez-vous que vous vous situez ?*
+
+- Afin de pouvoir exploiter au mieux cette variable, que nous jugeons intéressante, nous allons procéder à la manipulation suivante :  
+  + *Si la réponse est 0 ou 1, le répondant adhère aux partis d'extrême gauche*  
+  + *Si la réponse est 2, 3 ou 4, le répondant adhère aux partis de gauche*  
+  + *Si la réponse est 5, le répondant adhère aux partis centristes*  
+  + *Si la réponse est 6, 7 ou 8, le répondant adhère aux partis de droite*  
+  + *Si la réponse est 9 ou 10, le répondant adhère aux partis d'extrême droite*
+
+```{r recodage politique}
+data2 <- data[!is.na(data$NOU1_R),]
+data2$politique <- ifelse(data2$NOU1_R %in% c(1,2),"Extrême gauche",
+                         ifelse(data2$NOU1_R %in% c(3:5),"Gauche",
+                                ifelse(data2$NOU1_R == 6,"Centre",
+                                       ifelse(data2$NOU1_R %in% c(7:9),"Droite","Extrême droite"))))
+
+data2$politique <- data2$politique |> 
+  ordered(levels=c("Extrême gauche","Gauche","Centre","Droite","Extrême droite"))
+
+```
+
+À partir de ces données, nous allons construire des fonctions de densité.
+
+```{r densité politique, fig.align='center',message=FALSE,fig.height = 4, fig.width = 7,fig.align='center'}
+data2 |> ggplot() + aes(x=Croy_complot,fill=politique,y=politique) +
+  geom_density_ridges(alpha = 0.8, col = NA,
+                      scale = 5)+
+  labs(y=" ",x="Niveau de croyances aux théories",title = "Niveau de croyances aux théories complotistes",subtitle="en fonction des convictions politiques des protagonistes",
+       caption = "Sources : sondage pour l'Arcom, data.gouv")+
+  theme_dark()+
+  theme(legend.position = "none")+ 
+  annotate(geom = "curve", col="black",
+           angle = 70, curvature = -0.5,
+           x = 5.5, y = 7, 
+           arrow = arrow(length = unit(2, "mm")),
+            xend = 9, yend = 6.8)+
+   annotate(geom = "text", fontface="bold",
+           x = 9.2, y = 6.3,
+           label = "Une grosse tendance \npour l'extrême droite",col="white")
+  
+```
+
+- Ce graphique nous montre que :  
+  + **Les niveaux de croyances sont quasi-similaires pour la plupart des partis politiques**
+  + la gauche présente un niveau de croyance **plus faible** que l'ensemble des autres partis.  
+  + Les individus ralliés aux partis extrêmistes semblent être les plus convaincus par les théories complotistes. **Mais on peut surtout constater que les protagonistes ralliés aux partis d'extrême droite sont et de façon significative les plus convaincus par les théories**
+  
+***
+# **Conclusion**
+
+- **Partie 1** : variables sociodémographiques  
+  + On peut conclure que ce sont surtout **les moins diplômés** qui sont susceptibles de croire à des théories complotistes. Plus le niveau d’études des protagonistes augmente, moins ils y adhèrent.  
+  + Du côté de l'âge, on constate que **les plus âgés ont tendance à croire davantage aux théories complotistes.**  
+  + Pour le sexe, **aucune différence notable** n’est constatée.
+
+- **Partie 2** : les médias  
+  + Après l'analyse des déterminants individuels, il apparaît que **les médias jouent un rôle majeur dans l’exposition aux théories complotistes**.  
+  + L’analyse révèle que **la croyance aux théories complotistes varie selon la ligne éditoriale** :
+    + les médias de droite conservatrice présentent des niveaux plus élevés et plus dispersés. 
+    + Les médias de centre-gauche et le service public affichent des niveaux plus modérés et homogènes.
